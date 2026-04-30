@@ -1,0 +1,1027 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Operational Copilot — Prototype</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Syne:wght@400;600;700&family=Inter:wght@400;500&display=swap');
+
+  :root {
+    --bg0: #0a0c10;
+    --bg1: #111318;
+    --bg2: #181c24;
+    --bg3: #1f2430;
+    --border: rgba(255,255,255,0.07);
+    --border2: rgba(255,255,255,0.13);
+    --teal: #1ddba8;
+    --teal-dim: rgba(29,219,168,0.12);
+    --amber: #f5a623;
+    --amber-dim: rgba(245,166,35,0.12);
+    --blue: #4a9eff;
+    --blue-dim: rgba(74,158,255,0.12);
+    --red: #ff5c5c;
+    --red-dim: rgba(255,92,92,0.12);
+    --txt: #e8eaf0;
+    --txt2: #7a8098;
+    --txt3: #4a5068;
+    --mono: 'JetBrains Mono', monospace;
+    --sans: 'Inter', sans-serif;
+    --display: 'Syne', sans-serif;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg0); color: var(--txt); font-family: var(--sans); font-size: 13px; line-height: 1.5; min-height: 100vh; }
+
+  /* TOPBAR */
+  .topbar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0 20px; height: 48px;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg1);
+    position: sticky; top: 0; z-index: 100;
+  }
+  .logo { font-family: var(--display); font-size: 16px; font-weight: 700; letter-spacing: -0.3px; color: var(--txt); }
+  .logo span { color: var(--teal); }
+  .topbar-badges { display: flex; gap: 8px; align-items: center; }
+  .badge { display: flex; align-items: center; gap: 5px; padding: 3px 10px; border-radius: 20px; font-size: 11px; font-family: var(--mono); border: 1px solid; }
+  .badge-green { background: rgba(29,219,168,0.08); border-color: rgba(29,219,168,0.3); color: var(--teal); }
+  .badge-amber { background: var(--amber-dim); border-color: rgba(245,166,35,0.3); color: var(--amber); }
+  .badge-blue { background: var(--blue-dim); border-color: rgba(74,158,255,0.3); color: var(--blue); }
+  .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; animation: pulse 2s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+  .topbar-right { display: flex; gap: 12px; align-items: center; font-size: 11px; color: var(--txt2); font-family: var(--mono); }
+
+  /* LAYOUT */
+  .main { display: grid; grid-template-columns: 280px 1fr 300px; gap: 1px; background: var(--border); min-height: calc(100vh - 48px); }
+  .col { background: var(--bg0); display: flex; flex-direction: column; gap: 1px; }
+
+  /* PANELS */
+  .panel { background: var(--bg1); padding: 14px 16px; }
+  .panel-title { font-family: var(--mono); font-size: 10px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--txt3); margin-bottom: 12px; display: flex; align-items: center; justify-content: space-between; }
+  .panel-title span { color: var(--teal); font-size: 10px; }
+
+  /* KPI CARDS */
+  .kpi-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .kpi { background: var(--bg2); border-radius: 8px; padding: 10px 12px; border: 1px solid var(--border); }
+  .kpi-label { font-size: 10px; color: var(--txt3); font-family: var(--mono); margin-bottom: 4px; }
+  .kpi-value { font-size: 20px; font-weight: 600; font-family: var(--display); letter-spacing: -0.5px; }
+  .kpi-delta { font-size: 10px; font-family: var(--mono); margin-top: 2px; }
+  .up { color: var(--teal); }
+  .down { color: var(--red); }
+  .warn { color: var(--amber); }
+
+  /* DIGITAL TWIN STATE */
+  .twin-rows { display: flex; flex-direction: column; gap: 6px; }
+  .twin-row { display: flex; align-items: center; justify-content: space-between; padding: 6px 10px; background: var(--bg2); border-radius: 6px; border: 1px solid var(--border); }
+  .twin-key { font-family: var(--mono); font-size: 11px; color: var(--txt2); }
+  .twin-val { font-family: var(--mono); font-size: 11px; font-weight: 500; }
+  .twin-bar { height: 3px; background: var(--bg3); border-radius: 2px; margin-top: 3px; }
+  .twin-fill { height: 100%; border-radius: 2px; transition: width 1s ease; }
+
+  /* AGENT TRACE */
+  .trace-container { flex: 1; overflow-y: auto; background: var(--bg0); padding: 12px; font-family: var(--mono); font-size: 11px; min-height: 200px; max-height: 320px; }
+  .trace-container::-webkit-scrollbar { width: 3px; }
+  .trace-container::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+  .trace-entry { margin-bottom: 10px; opacity: 0; animation: fadein 0.4s forwards; }
+  @keyframes fadein { to { opacity: 1; } }
+  .trace-agent { font-size: 10px; margin-bottom: 2px; display: flex; align-items: center; gap: 6px; }
+  .agent-tag { padding: 1px 7px; border-radius: 3px; font-size: 9px; font-weight: 500; }
+  .tag-orch { background: rgba(74,158,255,0.2); color: var(--blue); }
+  .tag-supp { background: rgba(29,219,168,0.2); color: var(--teal); }
+  .tag-cust { background: rgba(245,166,35,0.2); color: var(--amber); }
+  .tag-sys { background: rgba(255,255,255,0.08); color: var(--txt2); }
+  .trace-text { color: var(--txt); line-height: 1.5; }
+  .trace-text .hi { color: var(--teal); }
+  .trace-text .warn { color: var(--amber); }
+  .trace-text .err { color: var(--red); }
+  .trace-step { display: inline-block; background: var(--bg2); border: 1px solid var(--border2); border-radius: 4px; padding: 1px 6px; font-size: 10px; color: var(--txt2); margin-right: 4px; }
+
+  /* TAO LOOP */
+  .tao-loop { display: flex; align-items: center; justify-content: center; gap: 0; padding: 10px 0; }
+  .tao-step { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+  .tao-circle { width: 38px; height: 38px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-family: var(--mono); font-size: 9px; font-weight: 500; border: 1.5px solid; transition: all 0.3s; }
+  .tao-active { background: var(--teal-dim); border-color: var(--teal); color: var(--teal); box-shadow: 0 0 12px rgba(29,219,168,0.3); }
+  .tao-idle { background: var(--bg2); border-color: var(--border2); color: var(--txt3); }
+  .tao-label { font-size: 8px; color: var(--txt3); font-family: var(--mono); letter-spacing: 0.5px; }
+  .tao-arrow { color: var(--border2); font-size: 14px; margin: 0 4px; margin-bottom: 14px; }
+
+  /* CHART */
+  .chart-wrap { position: relative; height: 150px; }
+
+  /* SYNTHETIC USERS */
+  .persona-list { display: flex; flex-direction: column; gap: 6px; }
+  .persona { background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 9px 11px; }
+  .persona-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+  .persona-name { font-family: var(--display); font-size: 12px; font-weight: 600; }
+  .persona-count { font-family: var(--mono); font-size: 10px; color: var(--txt3); }
+  .prob-row { display: flex; gap: 6px; align-items: center; margin-bottom: 3px; }
+  .prob-label { font-family: var(--mono); font-size: 9px; color: var(--txt3); width: 46px; }
+  .prob-bar-track { flex: 1; height: 4px; background: var(--bg3); border-radius: 2px; }
+  .prob-fill { height: 100%; border-radius: 2px; }
+  .prob-num { font-family: var(--mono); font-size: 9px; width: 28px; text-align: right; }
+
+  /* EVENT BUS */
+  .bus-feed { font-family: var(--mono); font-size: 10px; display: flex; flex-direction: column; gap: 4px; max-height: 160px; overflow-y: auto; }
+  .bus-feed::-webkit-scrollbar { width: 2px; }
+  .bus-feed::-webkit-scrollbar-thumb { background: var(--border); }
+  .bus-msg { display: flex; gap: 8px; align-items: flex-start; padding: 5px 8px; border-radius: 4px; background: var(--bg2); border-left: 2px solid; }
+  .bus-msg.route { border-color: var(--blue); }
+  .bus-msg.sync { border-color: var(--teal); }
+  .bus-msg.queue { border-color: var(--amber); }
+  .bus-time { color: var(--txt3); min-width: 44px; }
+  .bus-content { color: var(--txt2); flex: 1; line-height: 1.4; }
+  .bus-content strong { color: var(--txt); font-weight: 500; }
+
+  /* SELF-CORRECTION LOG */
+  .log-list { display: flex; flex-direction: column; gap: 5px; max-height: 160px; overflow-y: auto; }
+  .log-list::-webkit-scrollbar { width: 2px; }
+  .log-entry { background: var(--bg2); border-radius: 5px; padding: 6px 9px; border-left: 2px solid; }
+  .log-entry.fix { border-color: var(--teal); }
+  .log-entry.warn-log { border-color: var(--amber); }
+  .log-time { font-family: var(--mono); font-size: 9px; color: var(--txt3); }
+  .log-msg { font-family: var(--mono); font-size: 10px; color: var(--txt2); margin-top: 2px; line-height: 1.4; }
+  .log-msg strong { color: var(--txt); }
+
+  /* ROI ENGINE */
+  .roi-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .roi-item { background: var(--bg2); border-radius: 6px; padding: 8px 10px; text-align: center; }
+  .roi-val { font-family: var(--display); font-size: 16px; font-weight: 700; }
+  .roi-key { font-family: var(--mono); font-size: 9px; color: var(--txt3); margin-top: 2px; }
+
+  /* TOOL CALLS */
+  .tool-calls { display: flex; flex-direction: column; gap: 4px; }
+  .tool-call { display: flex; gap: 8px; align-items: center; padding: 5px 8px; background: var(--bg2); border-radius: 5px; font-family: var(--mono); font-size: 10px; }
+  .tool-icon { width: 20px; height: 20px; border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: 10px; flex-shrink: 0; }
+  .tool-name { color: var(--txt); flex: 1; }
+  .tool-status { font-size: 9px; padding: 1px 6px; border-radius: 3px; }
+  .tool-ok { background: rgba(29,219,168,0.15); color: var(--teal); }
+  .tool-run { background: rgba(74,158,255,0.15); color: var(--blue); animation: pulse 1.5s infinite; }
+  .tool-err { background: var(--red-dim); color: var(--red); }
+
+  .divider { height: 1px; background: var(--border); margin: 2px 0; }
+  .section-gap { height: 1px; background: var(--border); }
+
+  /* Sim button */
+  .sim-btn { display: block; width: 100%; padding: 7px; background: var(--teal-dim); border: 1px solid rgba(29,219,168,0.3); border-radius: 6px; color: var(--teal); font-family: var(--mono); font-size: 11px; cursor: pointer; text-align: center; transition: background 0.2s; margin-top: 8px; }
+  .sim-btn:hover { background: rgba(29,219,168,0.2); }
+
+  /* Scrollbar global */
+  * { scrollbar-width: thin; scrollbar-color: var(--border2) transparent; }
+
+  /* DATA INPUT DRAWER */
+  .drawer-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 200; opacity: 0; pointer-events: none; transition: opacity 0.25s; }
+  .drawer-overlay.open { opacity: 1; pointer-events: all; }
+  .drawer { position: fixed; top: 0; right: -420px; width: 420px; height: 100vh; background: var(--bg1); border-left: 1px solid var(--border2); z-index: 201; transition: right 0.3s cubic-bezier(0.4,0,0.2,1); display: flex; flex-direction: column; }
+  .drawer.open { right: 0; }
+  .drawer-head { padding: 16px 20px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; }
+  .drawer-title { font-family: var(--display); font-size: 15px; font-weight: 700; }
+  .drawer-title span { color: var(--teal); }
+  .drawer-close { background: var(--bg2); border: 1px solid var(--border2); color: var(--txt2); width: 28px; height: 28px; border-radius: 6px; cursor: pointer; font-size: 14px; display: flex; align-items: center; justify-content: center; transition: background 0.15s; }
+  .drawer-close:hover { background: var(--bg3); color: var(--txt); }
+  .drawer-body { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 20px; }
+  .input-section { display: flex; flex-direction: column; gap: 10px; }
+  .input-section-label { font-family: var(--mono); font-size: 10px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--txt3); padding-bottom: 6px; border-bottom: 1px solid var(--border); }
+  .input-row { display: flex; flex-direction: column; gap: 4px; }
+  .input-label { font-size: 11px; color: var(--txt2); font-family: var(--mono); display: flex; justify-content: space-between; align-items: center; }
+  .input-label span { color: var(--txt3); font-size: 10px; }
+  .input-field { background: var(--bg2); border: 1px solid var(--border2); border-radius: 6px; padding: 7px 10px; color: var(--txt); font-family: var(--mono); font-size: 12px; outline: none; transition: border-color 0.15s; width: 100%; }
+  .input-field:focus { border-color: rgba(29,219,168,0.5); }
+  .input-field::placeholder { color: var(--txt3); }
+  .input-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .drawer-footer { padding: 16px 20px; border-top: 1px solid var(--border); flex-shrink: 0; display: flex; gap: 8px; }
+  .btn-primary { flex: 1; padding: 9px; background: var(--teal-dim); border: 1px solid rgba(29,219,168,0.4); border-radius: 7px; color: var(--teal); font-family: var(--mono); font-size: 12px; cursor: pointer; transition: background 0.15s; font-weight: 500; }
+  .btn-primary:hover { background: rgba(29,219,168,0.22); }
+  .btn-secondary { padding: 9px 16px; background: var(--bg2); border: 1px solid var(--border2); border-radius: 7px; color: var(--txt2); font-family: var(--mono); font-size: 12px; cursor: pointer; transition: background 0.15s; }
+  .btn-secondary:hover { background: var(--bg3); }
+  .input-open-btn { display: flex; align-items: center; gap: 6px; padding: 5px 12px; background: var(--teal-dim); border: 1px solid rgba(29,219,168,0.35); border-radius: 6px; color: var(--teal); font-family: var(--mono); font-size: 11px; cursor: pointer; transition: background 0.15s; }
+  .input-open-btn:hover { background: rgba(29,219,168,0.2); }
+  .input-open-btn .btn-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--teal); }
+  .update-flash { animation: flash 0.6s ease; }
+  @keyframes flash { 0%,100%{opacity:1} 50%{opacity:0.3} }
+  .week-input-row { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+  .week-input-row input { text-align: center; padding: 5px 3px; font-size: 10px; }
+  .week-day-label { font-size: 9px; color: var(--txt3); font-family: var(--mono); text-align: center; margin-bottom: 2px; }
+  .week-days { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; margin-bottom: 3px; }
+</style>
+</head>
+<body>
+
+<!-- TOPBAR -->
+<div class="topbar">
+  <div class="logo">Operational <span>Copilot</span></div>
+  <div class="topbar-badges">
+    <div class="badge badge-green"><div class="dot"></div> Agent active</div>
+    <div class="badge badge-amber"><div class="dot"></div> Twin syncing</div>
+    <div class="badge badge-blue">Llama 3 · Groq</div>
+  </div>
+  <div class="topbar-right">
+    <button class="input-open-btn" onclick="openDrawer()"><div class="btn-dot"></div> Enter your data</button>
+    <span id="clock">--:--:--</span>
+    <span>·</span>
+    <span id="biz-name-label">D2C Startup Demo</span>
+  </div>
+</div>
+
+<!-- MAIN GRID -->
+<div class="main">
+
+  <!-- LEFT COL -->
+  <div class="col">
+
+    <!-- KPIs -->
+    <div class="panel">
+      <div class="panel-title">Live KPIs <span id="kpi-ts">just now</span></div>
+      <div class="kpi-grid">
+        <div class="kpi">
+          <div class="kpi-label">Revenue / day</div>
+          <div class="kpi-value" id="kpi-rev">₹84.2K</div>
+          <div class="kpi-delta up" id="kpi-rev-d">↑ 6.1%</div>
+        </div>
+        <div class="kpi">
+          <div class="kpi-label">CAC</div>
+          <div class="kpi-value" id="kpi-cac">₹312</div>
+          <div class="kpi-delta down" id="kpi-cac-d">↑ 3.2%</div>
+        </div>
+        <div class="kpi">
+          <div class="kpi-label">Inventory</div>
+          <div class="kpi-value warn" id="kpi-inv">64%</div>
+          <div class="kpi-delta warn" id="kpi-inv-d">⚠ 3 SKUs low</div>
+        </div>
+        <div class="kpi">
+          <div class="kpi-label">Churn risk</div>
+          <div class="kpi-value" id="kpi-churn">8.4%</div>
+          <div class="kpi-delta up" id="kpi-churn-d">↓ 1.1%</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- DIGITAL TWIN STATE -->
+    <div class="panel">
+      <div class="panel-title">Digital Twin State <span>LAYER I</span></div>
+      <div class="twin-rows">
+        <div class="twin-row">
+          <div>
+            <div class="twin-key">ad_spend_today</div>
+            <div class="twin-bar"><div class="twin-fill" id="tw1" style="width:62%;background:var(--blue)"></div></div>
+          </div>
+          <div class="twin-val" style="color:var(--blue)" id="tw1v">₹18.6K</div>
+        </div>
+        <div class="twin-row">
+          <div style="flex:1">
+            <div class="twin-key">order_fulfillment_rate</div>
+            <div class="twin-bar"><div class="twin-fill" id="tw2" style="width:91%;background:var(--teal)"></div></div>
+          </div>
+          <div class="twin-val" style="color:var(--teal)" id="tw2v">91%</div>
+        </div>
+        <div class="twin-row">
+          <div style="flex:1">
+            <div class="twin-key">sku_stockout_risk</div>
+            <div class="twin-bar"><div class="twin-fill" id="tw3" style="width:38%;background:var(--amber)"></div></div>
+          </div>
+          <div class="twin-val" style="color:var(--amber)" id="tw3v">38%</div>
+        </div>
+        <div class="twin-row">
+          <div style="flex:1">
+            <div class="twin-key">campaign_roi</div>
+            <div class="twin-bar"><div class="twin-fill" id="tw4" style="width:74%;background:var(--teal)"></div></div>
+          </div>
+          <div class="twin-val" style="color:var(--teal)" id="tw4v">2.74×</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ROI ENGINE -->
+    <div class="panel">
+      <div class="panel-title">ROI Engine <span>LAYER III</span></div>
+      <div class="roi-grid">
+        <div class="roi-item">
+          <div class="roi-val" style="color:var(--teal)" id="roi1">₹2.74</div>
+          <div class="roi-key">per ₹1 ad spend</div>
+        </div>
+        <div class="roi-item">
+          <div class="roi-val" style="color:var(--blue)" id="roi2">87%</div>
+          <div class="roi-key">ops time saved</div>
+        </div>
+        <div class="roi-item">
+          <div class="roi-val" style="color:var(--amber)" id="roi3">-₹42K</div>
+          <div class="roi-key">waste prevented</div>
+        </div>
+        <div class="roi-item">
+          <div class="roi-val" style="color:var(--teal)" id="roi4">3.1×</div>
+          <div class="roi-key">experiment speed</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- RECENT TOOL CALLS -->
+    <div class="panel" style="flex:1">
+      <div class="panel-title">Recent Tool Calls <span>LAYER III</span></div>
+      <div class="tool-calls" id="tool-calls">
+        <div class="tool-call">
+          <div class="tool-icon" style="background:rgba(29,219,168,0.15);color:var(--teal)">DB</div>
+          <div class="tool-name">query_inventory_db</div>
+          <div class="tool-status tool-ok">200</div>
+        </div>
+        <div class="tool-call">
+          <div class="tool-icon" style="background:var(--blue-dim);color:var(--blue)">AD</div>
+          <div class="tool-name">meta_ads_api.get_spend</div>
+          <div class="tool-status tool-ok">200</div>
+        </div>
+        <div class="tool-call">
+          <div class="tool-icon" style="background:var(--amber-dim);color:var(--amber)">KP</div>
+          <div class="tool-name">calculate_kpi_delta</div>
+          <div class="tool-status tool-run">running</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- CENTER COL -->
+  <div class="col">
+
+    <!-- TAO LOOP -->
+    <div class="panel">
+      <div class="panel-title">Agentic TAO Loop <span>LAYER II</span></div>
+      <div class="tao-loop">
+        <div class="tao-step">
+          <div class="tao-circle tao-idle" id="tao-obs">OBS</div>
+          <div class="tao-label">observe</div>
+        </div>
+        <div class="tao-arrow">→</div>
+        <div class="tao-step">
+          <div class="tao-circle tao-idle" id="tao-think">THINK</div>
+          <div class="tao-label">reason</div>
+        </div>
+        <div class="tao-arrow">→</div>
+        <div class="tao-step">
+          <div class="tao-circle tao-idle" id="tao-act">ACT</div>
+          <div class="tao-label">execute</div>
+        </div>
+        <div class="tao-arrow">→</div>
+        <div class="tao-step">
+          <div class="tao-circle tao-idle" id="tao-rep">REP</div>
+          <div class="tao-label">report</div>
+        </div>
+        <div class="tao-arrow">↺</div>
+      </div>
+    </div>
+
+    <!-- LIVE AGENT TRACE -->
+    <div class="panel" style="padding-bottom:8px">
+      <div class="panel-title">Live Agent Thought Trace <span>LAYER II</span></div>
+    </div>
+    <div class="trace-container" id="trace-feed"></div>
+
+    <!-- REVENUE CHART -->
+    <div class="panel">
+      <div class="panel-title">Revenue Trend (7d) <span>LAYER IV</span></div>
+      <div class="chart-wrap">
+        <canvas id="revChart" role="img" aria-label="Revenue trend over 7 days">Revenue trend chart</canvas>
+      </div>
+    </div>
+
+    <!-- SCENARIO DIFF -->
+    <div class="panel" style="flex:1">
+      <div class="panel-title">Scenario Diff — What-If Simulator <span>LAYER III</span></div>
+      <div style="display:flex;gap:10px;margin-bottom:10px;align-items:center;">
+        <span style="font-family:var(--mono);font-size:11px;color:var(--txt2)">ad spend multiplier</span>
+        <input type="range" min="0.5" max="3" step="0.1" value="1.5" id="scenario-slider" style="flex:1">
+        <span style="font-family:var(--mono);font-size:12px;color:var(--teal);min-width:30px" id="slider-val">1.5×</span>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
+        <div class="kpi">
+          <div class="kpi-label">projected rev</div>
+          <div class="kpi-value up" id="sim-rev">₹126K</div>
+        </div>
+        <div class="kpi">
+          <div class="kpi-label">est. margin</div>
+          <div class="kpi-value" id="sim-margin">34%</div>
+        </div>
+        <div class="kpi">
+          <div class="kpi-label">stockout risk</div>
+          <div class="kpi-value warn" id="sim-stock">57%</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- RIGHT COL -->
+  <div class="col">
+
+    <!-- SYNTHETIC USERS -->
+    <div class="panel">
+      <div class="panel-title">Synthetic User Generator <span>CROSS-LAYER</span></div>
+      <div class="persona-list">
+        <div class="persona">
+          <div class="persona-header">
+            <div class="persona-name">Impulse Buyer</div>
+            <div class="persona-count" id="pu1-count">214 agents</div>
+          </div>
+          <div class="prob-row">
+            <div class="prob-label">buy</div>
+            <div class="prob-bar-track"><div class="prob-fill" style="width:72%;background:var(--teal)" id="pb1"></div></div>
+            <div class="prob-num up" id="pn1">0.72</div>
+          </div>
+          <div class="prob-row">
+            <div class="prob-label">churn</div>
+            <div class="prob-bar-track"><div class="prob-fill" style="width:12%;background:var(--red)"></div></div>
+            <div class="prob-num down">0.12</div>
+          </div>
+          <div class="prob-row">
+            <div class="prob-label">complain</div>
+            <div class="prob-bar-track"><div class="prob-fill" style="width:8%;background:var(--amber)"></div></div>
+            <div class="prob-num warn">0.08</div>
+          </div>
+        </div>
+        <div class="persona">
+          <div class="persona-header">
+            <div class="persona-name">Price Watcher</div>
+            <div class="persona-count">167 agents</div>
+          </div>
+          <div class="prob-row">
+            <div class="prob-label">buy</div>
+            <div class="prob-bar-track"><div class="prob-fill" style="width:31%;background:var(--teal)"></div></div>
+            <div class="prob-num up">0.31</div>
+          </div>
+          <div class="prob-row">
+            <div class="prob-label">churn</div>
+            <div class="prob-bar-track"><div class="prob-fill" style="width:44%;background:var(--red)"></div></div>
+            <div class="prob-num down">0.44</div>
+          </div>
+          <div class="prob-row">
+            <div class="prob-label">complain</div>
+            <div class="prob-bar-track"><div class="prob-fill" style="width:22%;background:var(--amber)"></div></div>
+            <div class="prob-num warn">0.22</div>
+          </div>
+        </div>
+        <div class="persona">
+          <div class="persona-header">
+            <div class="persona-name">Loyal Subscriber</div>
+            <div class="persona-count">89 agents</div>
+          </div>
+          <div class="prob-row">
+            <div class="prob-label">buy</div>
+            <div class="prob-bar-track"><div class="prob-fill" style="width:88%;background:var(--teal)"></div></div>
+            <div class="prob-num up">0.88</div>
+          </div>
+          <div class="prob-row">
+            <div class="prob-label">churn</div>
+            <div class="prob-bar-track"><div class="prob-fill" style="width:4%;background:var(--red)"></div></div>
+            <div class="prob-num down">0.04</div>
+          </div>
+          <div class="prob-row">
+            <div class="prob-label">complain</div>
+            <div class="prob-bar-track"><div class="prob-fill" style="width:5%;background:var(--amber)"></div></div>
+            <div class="prob-num warn">0.05</div>
+          </div>
+        </div>
+      </div>
+      <button class="sim-btn" id="sim-btn" onclick="runSim()">▶ Run Simulation (1000 personas)</button>
+    </div>
+
+    <!-- AGENT INTERACTION BUS -->
+    <div class="panel">
+      <div class="panel-title">Agent Interaction Bus <span>CROSS-LAYER</span></div>
+      <div class="bus-feed" id="bus-feed">
+        <div class="bus-msg route">
+          <span class="bus-time">09:41:02</span>
+          <span class="bus-content"><strong>route</strong> supplier_agent → orchestrator: inventory_alert{SKU-221}</span>
+        </div>
+        <div class="bus-msg sync">
+          <span class="bus-time">09:41:05</span>
+          <span class="bus-content"><strong>sync</strong> twin_state ← shopify.orders[batch=48]</span>
+        </div>
+        <div class="bus-msg queue">
+          <span class="bus-time">09:41:08</span>
+          <span class="bus-content"><strong>queue</strong> cust_svc_agent: 3 tickets pending response</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- SELF-CORRECTION LOG -->
+    <div class="panel">
+      <div class="panel-title">Self-Correction Log <span>LAYER IV</span></div>
+      <div class="log-list" id="log-list">
+        <div class="log-entry fix">
+          <div class="log-time">09:39:14</div>
+          <div class="log-msg"><strong>corrected:</strong> CAC estimate revised from ₹290 → ₹312 after Shopify fees reconciled</div>
+        </div>
+        <div class="log-entry warn-log">
+          <div class="log-time">09:40:02</div>
+          <div class="log-msg"><strong>flagged:</strong> Meta Ads ROAS drop 11% — paused campaign C4 pending review</div>
+        </div>
+        <div class="log-entry fix">
+          <div class="log-time">09:40:51</div>
+          <div class="log-msg"><strong>corrected:</strong> RAG retrieval re-ran with updated price context for Q3 doc</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- LIVE INTERACTION FEED -->
+    <div class="panel" style="flex:1">
+      <div class="panel-title">Live Interaction Feed <span>LAYER IV</span></div>
+      <div class="bus-feed" id="interaction-feed">
+        <div class="bus-msg sync">
+          <span class="bus-time">now</span>
+          <span class="bus-content">Supplier agent queried restock lead time for SKU-221</span>
+        </div>
+        <div class="bus-msg route">
+          <span class="bus-time">2s</span>
+          <span class="bus-content">Customer svc drafted reply to churn-risk user #2841</span>
+        </div>
+        <div class="bus-msg queue">
+          <span class="bus-time">8s</span>
+          <span class="bus-content">Orchestrator triggered ROI recalculation after ad pause</span>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- DATA INPUT DRAWER -->
+<div class="drawer-overlay" id="drawer-overlay" onclick="closeDrawer()"></div>
+<div class="drawer" id="drawer">
+  <div class="drawer-head">
+    <div class="drawer-title">Your <span>Business Data</span></div>
+    <button class="drawer-close" onclick="closeDrawer()">✕</button>
+  </div>
+  <div class="drawer-body">
+
+    <div class="input-section">
+      <div class="input-section-label">Business Info</div>
+      <div class="input-row">
+        <div class="input-label">Business name <span>shown in header</span></div>
+        <input class="input-field" id="in-bizname" type="text" placeholder="e.g. Zara Organics" />
+      </div>
+      <div class="input-row">
+        <div class="input-label">Industry / vertical <span>optional</span></div>
+        <input class="input-field" id="in-industry" type="text" placeholder="e.g. D2C skincare, F&B, fashion" />
+      </div>
+    </div>
+
+    <div class="input-section">
+      <div class="input-section-label">Revenue & Spend</div>
+      <div class="input-grid">
+        <div class="input-row">
+          <div class="input-label">Daily revenue (₹)</div>
+          <input class="input-field" id="in-rev" type="number" placeholder="84200" />
+        </div>
+        <div class="input-row">
+          <div class="input-label">Daily ad spend (₹)</div>
+          <input class="input-field" id="in-adspend" type="number" placeholder="18600" />
+        </div>
+        <div class="input-row">
+          <div class="input-label">CAC (₹)</div>
+          <input class="input-field" id="in-cac" type="number" placeholder="312" />
+        </div>
+        <div class="input-row">
+          <div class="input-label">Campaign ROAS</div>
+          <input class="input-field" id="in-roas" type="number" step="0.1" placeholder="2.74" />
+        </div>
+      </div>
+    </div>
+
+    <div class="input-section">
+      <div class="input-section-label">Operations</div>
+      <div class="input-grid">
+        <div class="input-row">
+          <div class="input-label">Inventory level (%)</div>
+          <input class="input-field" id="in-inv" type="number" min="0" max="100" placeholder="64" />
+        </div>
+        <div class="input-row">
+          <div class="input-label">Order fulfillment (%)</div>
+          <input class="input-field" id="in-fulfill" type="number" min="0" max="100" placeholder="91" />
+        </div>
+        <div class="input-row">
+          <div class="input-label">Churn rate (%)</div>
+          <input class="input-field" id="in-churn" type="number" step="0.1" placeholder="8.4" />
+        </div>
+        <div class="input-row">
+          <div class="input-label">Weekly orders</div>
+          <input class="input-field" id="in-orders" type="number" placeholder="340" />
+        </div>
+      </div>
+    </div>
+
+    <div class="input-section">
+      <div class="input-section-label">7-Day Revenue History <span style="color:var(--txt3);font-size:9px;font-family:var(--mono)">(fills the chart)</span></div>
+      <div class="week-days">
+        <div class="week-day-label">Mon</div>
+        <div class="week-day-label">Tue</div>
+        <div class="week-day-label">Wed</div>
+        <div class="week-day-label">Thu</div>
+        <div class="week-day-label">Fri</div>
+        <div class="week-day-label">Sat</div>
+        <div class="week-day-label">Sun</div>
+      </div>
+      <div class="week-input-row">
+        <input class="input-field" id="wd0" type="number" placeholder="61K" />
+        <input class="input-field" id="wd1" type="number" placeholder="72K" />
+        <input class="input-field" id="wd2" type="number" placeholder="69K" />
+        <input class="input-field" id="wd3" type="number" placeholder="77K" />
+        <input class="input-field" id="wd4" type="number" placeholder="84K" />
+        <input class="input-field" id="wd5" type="number" placeholder="92K" />
+        <input class="input-field" id="wd6" type="number" placeholder="84K" />
+      </div>
+    </div>
+
+    <div class="input-section">
+      <div class="input-section-label">Synthetic Personas <span style="color:var(--txt3);font-size:9px;font-family:var(--mono)">(buy probabilities)</span></div>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <div style="background:var(--bg2);border:1px solid var(--border);border-radius:7px;padding:10px 12px">
+          <div style="font-family:var(--mono);font-size:11px;color:var(--txt2);margin-bottom:7px">Segment 1 name</div>
+          <input class="input-field" id="seg1-name" type="text" placeholder="Impulse Buyer" style="margin-bottom:7px" />
+          <div class="input-grid">
+            <div class="input-row"><div class="input-label">Buy prob</div><input class="input-field" id="seg1-buy" type="number" step="0.01" min="0" max="1" placeholder="0.72" /></div>
+            <div class="input-row"><div class="input-label">Churn prob</div><input class="input-field" id="seg1-churn" type="number" step="0.01" min="0" max="1" placeholder="0.12" /></div>
+          </div>
+        </div>
+        <div style="background:var(--bg2);border:1px solid var(--border);border-radius:7px;padding:10px 12px">
+          <div style="font-family:var(--mono);font-size:11px;color:var(--txt2);margin-bottom:7px">Segment 2 name</div>
+          <input class="input-field" id="seg2-name" type="text" placeholder="Price Watcher" style="margin-bottom:7px" />
+          <div class="input-grid">
+            <div class="input-row"><div class="input-label">Buy prob</div><input class="input-field" id="seg2-buy" type="number" step="0.01" min="0" max="1" placeholder="0.31" /></div>
+            <div class="input-row"><div class="input-label">Churn prob</div><input class="input-field" id="seg2-churn" type="number" step="0.01" min="0" max="1" placeholder="0.44" /></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+  <div class="drawer-footer">
+    <button class="btn-secondary" onclick="resetData()">Reset</button>
+    <button class="btn-primary" onclick="applyData()">▶ Apply to Dashboard</button>
+  </div>
+</div>
+
+<script>
+// ─── Clock ───
+function tick() {
+  document.getElementById('clock').textContent = new Date().toLocaleTimeString('en-IN', {hour12:false});
+}
+tick(); setInterval(tick, 1000);
+
+// ─── Revenue Chart ───
+const revCtx = document.getElementById('revChart').getContext('2d');
+const revLabels = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+let revData = [61200, 72400, 68900, 77100, 84200, 91600, 84200];
+const revChart = new Chart(revCtx, {
+  type: 'line',
+  data: {
+    labels: revLabels,
+    datasets: [{
+      label: 'Revenue',
+      data: revData,
+      borderColor: '#1ddba8',
+      backgroundColor: 'rgba(29,219,168,0.08)',
+      borderWidth: 2,
+      pointBackgroundColor: '#1ddba8',
+      pointRadius: 3,
+      fill: true,
+      tension: 0.4
+    }]
+  },
+  options: {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: { legend: { display: false } },
+    scales: {
+      x: { ticks: { color: '#4a5068', font: { size: 10, family: 'JetBrains Mono' } }, grid: { color: 'rgba(255,255,255,0.04)' } },
+      y: { ticks: { color: '#4a5068', font: { size: 10, family: 'JetBrains Mono' }, callback: v => '₹' + (v/1000).toFixed(0) + 'K' }, grid: { color: 'rgba(255,255,255,0.04)' } }
+    }
+  }
+});
+
+// ─── Agent Trace Entries ───
+const traceEntries = [
+  { agent: 'orchestrator', tag: 'tag-orch', label: 'ORCH', text: '<span class="trace-step">OBSERVE</span> Ingesting Shopify batch #48 — <span class="hi">23 new orders</span> detected since last cycle.' },
+  { agent: 'orchestrator', tag: 'tag-orch', label: 'ORCH', text: '<span class="trace-step">THINK</span> Checking inventory thresholds against <span class="hi">rules.yaml</span> — SKU-221 flagged at <span class="warn">38% stock level</span>.' },
+  { agent: 'supplier', tag: 'tag-supp', label: 'SUPP', text: '<span class="trace-step">TOOL</span> Calling <span class="hi">query_inventory_db(sku="SKU-221")</span> → {qty: 184, reorder_pt: 200, lead_days: 7}' },
+  { agent: 'supplier', tag: 'tag-supp', label: 'SUPP', text: '<span class="trace-step">ACT</span> Generating restock PO draft. Supplier API response: <span class="hi">available in 5 days</span>. Sending Slack alert.' },
+  { agent: 'orchestrator', tag: 'tag-orch', label: 'ORCH', text: '<span class="trace-step">THINK</span> Meta Ads campaign C4 ROAS dropped from 3.1× → <span class="warn">2.4×</span>. Threshold breach detected. Evaluating pause condition.' },
+  { agent: 'customer_svc', tag: 'tag-cust', label: 'CUST', text: '<span class="trace-step">RAG</span> Retrieved 3 relevant policy docs for churn-risk user #2841. Drafting retention offer with <span class="hi">12% discount</span>.' },
+  { agent: 'orchestrator', tag: 'tag-orch', label: 'ORCH', text: '<span class="trace-step">ACT</span> Pausing campaign C4 via Meta Ads API. Reallocating ₹4,200 budget to campaign C7 (ROAS 3.8×).' },
+  { agent: 'orchestrator', tag: 'tag-orch', label: 'ORCH', text: '<span class="trace-step">REPORT</span> Cycle complete. KPIs updated. <span class="hi">2 actions executed</span>, <span class="warn">1 alert pending</span>. Next cycle in 15 min.' },
+  { agent: 'system', tag: 'tag-sys', label: 'SYS', text: '<span class="trace-step">SYNC</span> Digital twin state flushed to SQLite. ChromaDB embeddings updated with <span class="hi">new order vectors</span>.' },
+  { agent: 'orchestrator', tag: 'tag-orch', label: 'ORCH', text: '<span class="trace-step">OBSERVE</span> New cycle initiated. Revenue velocity: <span class="hi">₹84.2K/day</span> (+6.1% vs yesterday).' },
+  { agent: 'supplier', tag: 'tag-supp', label: 'SUPP', text: '<span class="trace-step">THINK</span> Running <span class="hi">scenario_diff</span>: if ad spend ×1.5 → stockout risk rises to 57%. Flagging to orchestrator.' },
+  { agent: 'customer_svc', tag: 'tag-cust', label: 'CUST', text: '<span class="trace-step">ACT</span> Retention email sent to segment "price_watcher_high_ltv" — 167 users. Expected churn reduction: <span class="hi">-1.8%</span>.' },
+];
+
+let traceIdx = 0;
+const traceFeed = document.getElementById('trace-feed');
+const taoIds = ['tao-obs','tao-think','tao-act','tao-rep'];
+let taoIdx = 0;
+
+function addTrace() {
+  const e = traceEntries[traceIdx % traceEntries.length];
+  traceIdx++;
+  const div = document.createElement('div');
+  div.className = 'trace-entry';
+  const agentLabel = { orchestrator:'ORCH', supplier:'SUPP', customer_svc:'CUST', system:'SYS' }[e.agent] || e.label;
+  div.innerHTML = `<div class="trace-agent"><span class="agent-tag ${e.tag}">${agentLabel}</span><span style="color:var(--txt3);font-size:9px">${new Date().toLocaleTimeString('en-IN',{hour12:false})}</span></div><div class="trace-text">${e.text}</div>`;
+  traceFeed.appendChild(div);
+  if (traceFeed.children.length > 20) traceFeed.removeChild(traceFeed.firstChild);
+  traceFeed.scrollTop = traceFeed.scrollHeight;
+
+  // animate TAO
+  taoIds.forEach(id => document.getElementById(id).className = 'tao-circle tao-idle');
+  document.getElementById(taoIds[taoIdx % 4]).className = 'tao-circle tao-active';
+  taoIdx++;
+}
+
+// Seed some initial traces
+for (let i = 0; i < 4; i++) addTrace();
+setInterval(addTrace, 3200);
+
+// ─── KPI Live Updates ───
+const kpiBase = { rev: 84200, cac: 312, inv: 64, churn: 8.4 };
+function wiggle(v, pct) { return v * (1 + (Math.random()-0.5)*2*pct); }
+setInterval(() => {
+  const r = wiggle(kpiBase.rev, 0.03);
+  document.getElementById('kpi-rev').textContent = '₹' + (r/1000).toFixed(1) + 'K';
+  const chg = ((r - kpiBase.rev)/kpiBase.rev*100);
+  const d = document.getElementById('kpi-rev-d');
+  d.textContent = (chg>0?'↑':'↓') + ' ' + Math.abs(chg).toFixed(1) + '%';
+  d.className = 'kpi-delta ' + (chg>0?'up':'down');
+
+  const cac = wiggle(kpiBase.cac, 0.02);
+  document.getElementById('kpi-cac').textContent = '₹' + Math.round(cac);
+
+  const inv = Math.max(10, Math.min(99, wiggle(kpiBase.inv, 0.02)));
+  document.getElementById('kpi-inv').textContent = Math.round(inv) + '%';
+
+  document.getElementById('kpi-ts').textContent = new Date().toLocaleTimeString('en-IN',{hour12:false});
+
+  // Update twin bars
+  const fill = Math.max(5, Math.min(95, wiggle(62, 0.03)));
+  document.getElementById('tw1').style.width = fill + '%';
+  document.getElementById('tw1v').textContent = '₹' + (fill*300).toFixed(0);
+}, 4000);
+
+// ─── Bus feed live ───
+const busMsgs = [
+  ['route', 'orchestrator → supplier_agent: evaluate_restock{SKU-221, qty=500}'],
+  ['sync', 'twin_state ← meta_ads.campaigns[refresh=true]'],
+  ['queue', 'email_webhook: retention_offer dispatched to 167 users'],
+  ['route', 'customer_svc → orchestrator: churn_risk_alert{user_id=2841, score=0.81}'],
+  ['sync', 'RAG context refreshed — 3 new policy docs embedded'],
+  ['queue', 'slack_webhook: stockout alert sent #ops-channel'],
+  ['route', 'orchestrator → orchestrator: self_eval — ROAS threshold check passed'],
+  ['sync', 'SQLite state flush complete — 23 new order records'],
+];
+let busIdx = 0;
+function addBus() {
+  const [type, msg] = busMsgs[busIdx % busMsgs.length];
+  busIdx++;
+  const feed = document.getElementById('bus-feed');
+  const ts = new Date().toLocaleTimeString('en-IN',{hour12:false});
+  const div = document.createElement('div');
+  div.className = 'bus-msg ' + type;
+  div.style.opacity = '0'; div.style.transition = 'opacity 0.3s';
+  div.innerHTML = `<span class="bus-time">${ts}</span><span class="bus-content"><strong>${type}</strong> ${msg}</span>`;
+  feed.appendChild(div);
+  if (feed.children.length > 8) feed.removeChild(feed.firstChild);
+  feed.scrollTop = feed.scrollHeight;
+  setTimeout(() => div.style.opacity = '1', 50);
+}
+setInterval(addBus, 3800);
+
+// ─── Self-correction log ───
+const logEntries = [
+  ['fix', 'confidence score re-evaluated after tool_call mismatch — revised forecast ±4%'],
+  ['warn-log', 'ReAct loop iteration #4 timeout — falling back to cached inventory state'],
+  ['fix', 'RAG retrieval improved: re-chunked product PDF with LangChain splitters'],
+  ['warn-log', 'Supplier API rate limit hit — queued 2 requests for next cycle'],
+  ['fix', 'Digital twin state resync triggered — order delta reconciled'],
+];
+let logIdx = 0;
+function addLog() {
+  const [type, msg] = logEntries[logIdx % logEntries.length];
+  logIdx++;
+  const list = document.getElementById('log-list');
+  const ts = new Date().toLocaleTimeString('en-IN',{hour12:false});
+  const div = document.createElement('div');
+  div.className = 'log-entry ' + type;
+  div.innerHTML = `<div class="log-time">${ts}</div><div class="log-msg"><strong>${type === 'fix' ? 'corrected:' : 'flagged:'}</strong> ${msg}</div>`;
+  list.appendChild(div);
+  if (list.children.length > 6) list.removeChild(list.firstChild);
+}
+setInterval(addLog, 7000);
+
+// ─── Scenario Slider ───
+const slider = document.getElementById('scenario-slider');
+slider.addEventListener('input', () => {
+  const v = parseFloat(slider.value);
+  document.getElementById('slider-val').textContent = v.toFixed(1) + '×';
+  const baseRev = 84200;
+  const projRev = baseRev * v * 0.92;
+  const margin = Math.max(15, 44 - (v - 1) * 12);
+  const stockout = Math.min(95, 38 + (v - 1) * 22);
+  document.getElementById('sim-rev').textContent = '₹' + (projRev/1000).toFixed(0) + 'K';
+  document.getElementById('sim-margin').textContent = margin.toFixed(0) + '%';
+  document.getElementById('sim-stock').textContent = stockout.toFixed(0) + '%';
+  document.getElementById('sim-margin').className = 'kpi-value ' + (margin > 30 ? 'up' : 'warn');
+  document.getElementById('sim-stock').className = 'kpi-value ' + (stockout > 60 ? 'down' : 'warn');
+});
+
+// ─── Simulation button ───
+function runSim() {
+  const btn = document.getElementById('sim-btn');
+  btn.textContent = '⟳ Running 1000 persona simulations...';
+  btn.disabled = true;
+  setTimeout(() => {
+    addTrace();
+    document.getElementById('pu1-count').textContent = Math.floor(200 + Math.random()*30) + ' agents';
+    addLog();
+    addBus();
+    btn.textContent = '✓ Simulation complete — results in trace';
+    btn.style.color = 'var(--teal)';
+    setTimeout(() => {
+      btn.textContent = '▶ Run Simulation (1000 personas)';
+      btn.disabled = false;
+      btn.style.color = 'var(--teal)';
+    }, 3000);
+  }, 2200);
+}
+
+// ─── Live Interaction Feed ───
+const intEvents = [
+  ['sync', 'Orchestrator ingested Shopify batch — 23 orders synced'],
+  ['route', 'Supplier agent queried lead time for SKU-221'],
+  ['queue', 'Customer svc drafted retention offer for segment "price_watcher"'],
+  ['route', 'Meta Ads ROAS alert — campaign C4 auto-paused'],
+  ['sync', 'Digital twin state refreshed from SQLite'],
+  ['queue', 'ROI engine recalculated after budget reallocation'],
+];
+let intIdx = 0;
+function addInt() {
+  const [type, msg] = intEvents[intIdx % intEvents.length];
+  intIdx++;
+  const feed = document.getElementById('interaction-feed');
+  const div = document.createElement('div');
+  div.className = 'bus-msg ' + type;
+  div.innerHTML = `<span class="bus-time">now</span><span class="bus-content">${msg}</span>`;
+  // Age existing entries
+  [...feed.querySelectorAll('.bus-time')].forEach((t,i) => {
+    const secs = [2,8,15,30]; t.textContent = (secs[i] || 60) + 's ago';
+  });
+  feed.insertBefore(div, feed.firstChild);
+  if (feed.children.length > 5) feed.removeChild(feed.lastChild);
+}
+setInterval(addInt, 5000);
+
+// ─── Drawer ───
+function openDrawer() {
+  document.getElementById('drawer').classList.add('open');
+  document.getElementById('drawer-overlay').classList.add('open');
+}
+function closeDrawer() {
+  document.getElementById('drawer').classList.remove('open');
+  document.getElementById('drawer-overlay').classList.remove('open');
+}
+
+function flash(id) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.classList.remove('update-flash');
+  void el.offsetWidth;
+  el.classList.add('update-flash');
+}
+
+function applyData() {
+  const g = id => document.getElementById(id).value.trim();
+  const n = (id, fallback) => { const v = parseFloat(g(id)); return isNaN(v) ? fallback : v; };
+
+  // Business name
+  const biz = g('in-bizname');
+  if (biz) document.getElementById('biz-name-label').textContent = biz;
+
+  // KPIs
+  const rev = n('in-rev', null);
+  const adspend = n('in-adspend', null);
+  const cac = n('in-cac', null);
+  const roas = n('in-roas', null);
+  const inv = n('in-inv', null);
+  const churn = n('in-churn', null);
+  const fulfill = n('in-fulfill', null);
+
+  if (rev !== null) {
+    kpiBase.rev = rev;
+    document.getElementById('kpi-rev').textContent = '₹' + (rev/1000).toFixed(1) + 'K';
+    flash('kpi-rev');
+  }
+  if (cac !== null) {
+    kpiBase.cac = cac;
+    document.getElementById('kpi-cac').textContent = '₹' + Math.round(cac);
+    flash('kpi-cac');
+  }
+  if (inv !== null) {
+    kpiBase.inv = inv;
+    document.getElementById('kpi-inv').textContent = Math.round(inv) + '%';
+    document.getElementById('tw3').style.width = Math.min(100,inv) + '%';
+    document.getElementById('tw3v').textContent = Math.round(inv) + '%';
+    flash('kpi-inv');
+  }
+  if (churn !== null) {
+    kpiBase.churn = churn;
+    document.getElementById('kpi-churn').textContent = churn.toFixed(1) + '%';
+    flash('kpi-churn');
+  }
+  if (adspend !== null) {
+    const pct = Math.min(100, (adspend / (rev || kpiBase.rev)) * 100 * 3);
+    document.getElementById('tw1').style.width = pct.toFixed(0) + '%';
+    document.getElementById('tw1v').textContent = '₹' + (adspend/1000).toFixed(1) + 'K';
+    document.getElementById('roi1').textContent = roas !== null ? '₹' + roas.toFixed(2) : document.getElementById('roi1').textContent;
+  }
+  if (roas !== null) {
+    document.getElementById('roi1').textContent = '₹' + roas.toFixed(2);
+    const roasPct = Math.min(100, roas / 5 * 100);
+    document.getElementById('tw4').style.width = roasPct.toFixed(0) + '%';
+    document.getElementById('tw4v').textContent = roas.toFixed(2) + '×';
+    flash('roi1');
+  }
+  if (fulfill !== null) {
+    document.getElementById('tw2').style.width = Math.min(100, fulfill) + '%';
+    document.getElementById('tw2v').textContent = Math.round(fulfill) + '%';
+  }
+
+  // Scenario slider recalculate with new base rev
+  const sv = parseFloat(document.getElementById('scenario-slider').value);
+  const baseRev = rev || kpiBase.rev;
+  document.getElementById('sim-rev').textContent = '₹' + ((baseRev * sv * 0.92)/1000).toFixed(0) + 'K';
+
+  // Weekly chart data
+  const wdIds = ['wd0','wd1','wd2','wd3','wd4','wd5','wd6'];
+  const newData = wdIds.map((id, i) => {
+    const v = parseFloat(g(id));
+    return isNaN(v) ? revData[i] : v;
+  });
+  const hasWeekData = wdIds.some(id => g(id) !== '');
+  if (hasWeekData) {
+    revData = newData;
+    revChart.data.datasets[0].data = revData;
+    revChart.update('active');
+  }
+
+  // Persona segments
+  const seg1name = g('seg1-name');
+  const seg1buy = n('seg1-buy', null);
+  const seg1churn = n('seg1-churn', null);
+  const seg2name = g('seg2-name');
+  const seg2buy = n('seg2-buy', null);
+  const seg2churn = n('seg2-churn', null);
+
+  const personas = document.querySelectorAll('.persona');
+  if (personas[0]) {
+    if (seg1name) personas[0].querySelector('.persona-name').textContent = seg1name;
+    if (seg1buy !== null) {
+      const pct = Math.min(100, seg1buy * 100).toFixed(0);
+      personas[0].querySelectorAll('.prob-fill')[0].style.width = pct + '%';
+      personas[0].querySelectorAll('.prob-num')[0].textContent = seg1buy.toFixed(2);
+    }
+    if (seg1churn !== null) {
+      const pct = Math.min(100, seg1churn * 100).toFixed(0);
+      personas[0].querySelectorAll('.prob-fill')[1].style.width = pct + '%';
+      personas[0].querySelectorAll('.prob-num')[1].textContent = seg1churn.toFixed(2);
+    }
+  }
+  if (personas[1]) {
+    if (seg2name) personas[1].querySelector('.persona-name').textContent = seg2name;
+    if (seg2buy !== null) {
+      const pct = Math.min(100, seg2buy * 100).toFixed(0);
+      personas[1].querySelectorAll('.prob-fill')[0].style.width = pct + '%';
+      personas[1].querySelectorAll('.prob-num')[0].textContent = seg2buy.toFixed(2);
+    }
+    if (seg2churn !== null) {
+      const pct = Math.min(100, seg2churn * 100).toFixed(0);
+      personas[1].querySelectorAll('.prob-fill')[1].style.width = pct + '%';
+      personas[1].querySelectorAll('.prob-num')[1].textContent = seg2churn.toFixed(2);
+    }
+  }
+
+  // Inject a trace entry acknowledging the new data
+  const bizLabel = biz || 'user';
+  const entry = { agent: 'system', tag: 'tag-sys', label: 'SYS', text: `<span class="trace-step">DATA_UPDATE</span> Live data ingested from <span class="hi">${bizLabel}</span>. Twin state recalibrated. KPIs updated across all layers.` };
+  const div = document.createElement('div');
+  div.className = 'trace-entry';
+  div.innerHTML = `<div class="trace-agent"><span class="agent-tag tag-sys">SYS</span><span style="color:var(--txt3);font-size:9px">${new Date().toLocaleTimeString('en-IN',{hour12:false})}</span></div><div class="trace-text">${entry.text}</div>`;
+  traceFeed.appendChild(div);
+  traceFeed.scrollTop = traceFeed.scrollHeight;
+
+  closeDrawer();
+}
+
+function resetData() {
+  ['in-bizname','in-industry','in-rev','in-adspend','in-cac','in-roas','in-inv','in-fulfill','in-churn','in-orders',
+   'wd0','wd1','wd2','wd3','wd4','wd5','wd6','seg1-name','seg1-buy','seg1-churn','seg2-name','seg2-buy','seg2-churn']
+  .forEach(id => { const el = document.getElementById(id); if(el) el.value = ''; });
+}
+</script>
+</body>
+</html>
