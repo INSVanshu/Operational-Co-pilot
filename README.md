@@ -72,7 +72,7 @@ It includes:
 
 No install required. Open `index.html` in any modern browser.
 
-Or visit the live demo at: `https://yourusername.github.io/operational-copilot`
+Or visit the live demo at: `(https://insvanshu.github.io/Operational-Co-pilot/)`
 
 ---
 
